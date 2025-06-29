@@ -1,27 +1,48 @@
+const express = require("express");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const FormData = require("form-data");
+const axios = require("axios");
 
-const express = require('express');
-const multer = require('multer');
-const { exec } = require('child_process');
-const path = require('path');
-const cors = require('cors');
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
-const upload = multer({ dest: 'uploads/' });
-app.use(cors());
-app.use(express.static('frontend'));
+// Serve static files from the frontend
+app.use(express.static(path.join(__dirname, "frontend")));
 
-app.post('/predict', upload.single('image'), (req, res) => {
-    const imagePath = req.file.path;
-    exec(`python3 backend/predict.py ${imagePath}`, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`Error: ${error.message}`);
-            return res.status(500).json({ error: 'Prediction failed' });
-        }
-        res.json({ prediction: stdout.trim() });
+// Multer config to store uploaded images
+const storage = multer.diskStorage({
+  destination: "uploads/",
+  filename: (req, file, cb) => {
+    const uniqueName = Date.now() + path.extname(file.originalname);
+    cb(null, uniqueName);
+  },
+});
+const upload = multer({ storage });
+
+// POST /predict route — sends image to Python backend
+app.post("/predict", upload.single("image"), async (req, res) => {
+  const imagePath = req.file.path;
+
+  const form = new FormData();
+  form.append("image", fs.createReadStream(imagePath));
+
+  try {
+    const response = await axios.post("https://smart-sorting-backend.onrender.com/predict", form, {
+      headers: form.getHeaders(),
     });
+
+    res.json(response.data);
+  } catch (err) {
+    console.error("Prediction error:", err.message);
+    res.status(500).json({ prediction: "Error" });
+  } finally {
+    fs.unlinkSync(imagePath); // Clean up uploaded file
+  }
 });
 
+// Start the server
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+  console.log(`Server running at http://localhost:${port}`);
 });
