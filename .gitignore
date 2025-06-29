@@ -1,0 +1,13 @@
+# Node.js
+node_modules/
+uploads/
+
+# Python
+*.pyc
+__pycache__/
+
+# OS files
+.DS_Store
+
+# Editor files
+.vscode/
